@@ -27,13 +27,13 @@ echo.
 echo [2/3] Setting up environment...
 
 if "%CHOICE%"=="1" (
-    echo Installing for NVIDIA GPU (CUDA 12.8)...
+    echo Installing for NVIDIA GPU - CUDA 12.8
     uv sync --extra-index-url https://download.pytorch.org/whl/cu128
 ) else if "%CHOICE%"=="2" (
-    echo Installing for Intel GPU / XPU...
+    echo Installing for Intel GPU / XPU
     uv sync --extra-index-url https://download.pytorch.org/whl/xpu
 ) else (
-    echo Installing for CPU/Standard...
+    echo Installing for CPU/Standard
     uv sync
 )
 
