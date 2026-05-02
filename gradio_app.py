@@ -120,6 +120,8 @@ def _build_runtime_key(
     enable_watermark: bool,
 ) -> RuntimeKey:
     checkpoint_path = _resolve_checkpoint_path(checkpoint)
+    # Auto-enable torch.compile only on CUDA (XPU Triton backend has issues on Windows).
+    _should_compile = str(model_device).startswith("cuda")
     return RuntimeKey(
         checkpoint=checkpoint_path,
         model_device=str(model_device),
@@ -128,7 +130,7 @@ def _build_runtime_key(
         codec_device=str(codec_device),
         codec_precision=str(codec_precision),
         enable_watermark=bool(enable_watermark),
-        compile_model=False,
+        compile_model=_should_compile,
         compile_dynamic=False,
     )
 
@@ -324,38 +326,38 @@ def build_ui() -> gr.Blocks:
     model_precision_choices = _precision_choices_for_device(default_model_device)
     codec_precision_choices = _precision_choices_for_device(default_codec_device)
 
-    with gr.Blocks(title="Irodori-TTS Gradio") as demo:
-        gr.Markdown("# Irodori-TTS Inference (Cached Runtime)")
+    with gr.Blocks(title="Irodori-TTS 音声合成 WebUI") as demo:
+        gr.Markdown("# Irodori-TTS 音声合成 WebUI")
         gr.Markdown(
-            "When settings are unchanged, runtime is reused and only sampling/decoding runs."
+            "モデルやデバイスの設定が同じ場合はメモリ上のモデルを再利用して高速に生成します。"
         )
 
         with gr.Row():
             checkpoint = gr.Textbox(
-                label="Checkpoint (.pt/.safetensors or HF repo id)",
+                label="モデル (チェックポイントのパス、またはHFリポジトリID)",
                 value=default_checkpoint,
                 scale=4,
             )
             model_device = gr.Dropdown(
-                label="Model Device",
+                label="推論デバイス (モデル)",
                 choices=device_choices,
                 value=default_model_device,
                 scale=1,
             )
             model_precision = gr.Dropdown(
-                label="Model Precision",
+                label="計算精度 (モデル)",
                 choices=model_precision_choices,
                 value=model_precision_choices[0],
                 scale=1,
             )
             codec_device = gr.Dropdown(
-                label="Codec Device",
+                label="推論デバイス (コーデック)",
                 choices=device_choices,
                 value=default_codec_device,
                 scale=1,
             )
             codec_precision = gr.Dropdown(
-                label="Codec Precision",
+                label="計算精度 (コーデック)",
                 choices=codec_precision_choices,
                 value=codec_precision_choices[0],
                 scale=1,
@@ -363,67 +365,67 @@ def build_ui() -> gr.Blocks:
             enable_watermark = gr.State(False)
 
         with gr.Row():
-            load_model_btn = gr.Button("Load Model")
-            clear_cache_btn = gr.Button("Unload Model")
-            clear_cache_msg = gr.Textbox(label="Model Status", interactive=False)
+            load_model_btn = gr.Button("モデルを読み込む")
+            clear_cache_btn = gr.Button("メモリから解放")
+            clear_cache_msg = gr.Textbox(label="モデルの状態 (ステータス)", interactive=False)
 
-        text = gr.Textbox(label="Text", lines=4)
+        text = gr.Textbox(label="読み上げるテキスト", lines=4)
         uploaded_audio = gr.Audio(
-            label="Reference Audio Upload (optional, blank = no-reference mode)",
+            label="参照音声のアップロード (オプション、空欄の場合はノーリファレンスモードで生成)",
             type="filepath",
         )
 
-        with gr.Accordion("Sampling", open=True):
+        with gr.Accordion("サンプリング設定 (品質や生成速度の調整)", open=True):
             with gr.Row():
-                num_steps = gr.Slider(label="Num Steps", minimum=1, maximum=120, value=40, step=1)
+                num_steps = gr.Slider(label="ステップ数 (少ないほど高速、15程度で十分な品質)", minimum=1, maximum=120, value=15, step=1)
                 num_candidates = gr.Slider(
-                    label="Num Candidates",
+                    label="生成候補数 (一度に生成する音声の数)",
                     minimum=1,
                     maximum=MAX_GRADIO_CANDIDATES,
                     value=1,
                     step=1,
                 )
-                seed_raw = gr.Textbox(label="Seed (blank=random)", value="")
+                seed_raw = gr.Textbox(label="シード値 (空欄でランダム生成)", value="")
 
             with gr.Row():
                 cfg_guidance_mode = gr.Dropdown(
-                    label="CFG Guidance Mode",
+                    label="CFG ガイダンスモード (independent推奨)",
                     choices=["independent", "joint", "alternating"],
                     value="independent",
                 )
                 cfg_scale_text = gr.Slider(
-                    label="CFG Scale Text",
+                    label="テキストの反映度 (CFG Scale Text)",
                     minimum=0.0,
                     maximum=10.0,
                     value=3.0,
                     step=0.1,
                 )
                 cfg_scale_speaker = gr.Slider(
-                    label="CFG Scale Speaker",
+                    label="話者の反映度 (CFG Scale Speaker)",
                     minimum=0.0,
                     maximum=10.0,
                     value=5.0,
                     step=0.1,
                 )
 
-        with gr.Accordion("Advanced (Optional)", open=False):
-            cfg_scale_raw = gr.Textbox(label="CFG Scale Override (optional)", value="")
+        with gr.Accordion("高度な設定 (オプション)", open=False):
+            cfg_scale_raw = gr.Textbox(label="CFG一括上書き (オプション)", value="")
             with gr.Row():
-                cfg_min_t = gr.Number(label="CFG Min t", value=0.5)
-                cfg_max_t = gr.Number(label="CFG Max t", value=1.0)
-                context_kv_cache = gr.Checkbox(label="Context KV Cache", value=True)
+                cfg_min_t = gr.Number(label="CFG 最小t値 (CFGを適用する最小ステップ)", value=0.5)
+                cfg_max_t = gr.Number(label="CFG 最大t値", value=1.0)
+                context_kv_cache = gr.Checkbox(label="Context KVキャッシュを使用 (高速化)", value=True)
             with gr.Row():
-                truncation_factor_raw = gr.Textbox(label="Truncation Factor (optional)", value="")
-                rescale_k_raw = gr.Textbox(label="Rescale k (optional)", value="")
-                rescale_sigma_raw = gr.Textbox(label="Rescale sigma (optional)", value="")
+                truncation_factor_raw = gr.Textbox(label="トランケーション係数 (オプション)", value="")
+                rescale_k_raw = gr.Textbox(label="Rescale k (スコア再スケーリング係数、0.7推奨)", value="0.7")
+                rescale_sigma_raw = gr.Textbox(label="Rescale sigma (スコア再スケーリング分散、0.7推奨)", value="0.7")
             with gr.Row():
-                speaker_kv_scale_raw = gr.Textbox(label="Speaker KV Scale (optional)", value="")
-                speaker_kv_min_t_raw = gr.Textbox(label="Speaker KV Min t (optional)", value="0.9")
+                speaker_kv_scale_raw = gr.Textbox(label="話者特徴スケール (Speaker KV Scale、オプション)", value="")
+                speaker_kv_min_t_raw = gr.Textbox(label="話者特徴スケール 最小t値", value="0.9")
                 speaker_kv_max_layers_raw = gr.Textbox(
-                    label="Speaker KV Max Layers (optional)", value=""
+                    label="話者特徴スケール 最大レイヤー数", value=""
                 )
 
-        generate_btn = gr.Button("Generate", variant="primary")
+        generate_btn = gr.Button("音声を生成 (Generate)", variant="primary")
 
         out_audios: list[gr.Audio] = []
         num_rows = (
@@ -438,15 +440,15 @@ def build_ui() -> gr.Blocks:
                             break
                         out_audios.append(
                             gr.Audio(
-                                label=f"Generated Audio {i + 1}",
+                                label=f"生成された音声 {i + 1}",
                                 type="filepath",
                                 interactive=False,
                                 visible=(i == 0),
                                 min_width=160,
                             )
                         )
-        out_log = gr.Textbox(label="Run Log", lines=8)
-        out_timing = gr.Textbox(label="Timing", lines=8)
+        out_log = gr.Textbox(label="実行ログ", lines=8)
+        out_timing = gr.Textbox(label="処理時間 (タイミング)", lines=8)
 
         generate_btn.click(
             _run_generation,

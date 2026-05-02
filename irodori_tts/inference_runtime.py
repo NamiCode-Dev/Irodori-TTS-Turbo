@@ -31,6 +31,13 @@ def _is_mps_available() -> bool:
     return bool(torch.backends.mps.is_available())
 
 
+def _is_xpu_available() -> bool:
+    """Intel XPU (Arc / Data Center GPU / NPU via IPEX) detection."""
+    if not hasattr(torch, "xpu"):
+        return False
+    return bool(torch.xpu.is_available())
+
+
 def resolve_runtime_device(device: str | torch.device) -> torch.device:
     resolved = torch.device(device)
     if resolved.type == "cpu":
@@ -45,13 +52,19 @@ def resolve_runtime_device(device: str | torch.device) -> torch.device:
         if not _is_mps_available():
             raise ValueError("MPS device requested but torch.backends.mps.is_available() is False.")
         return torch.device("mps")
-    raise ValueError(f"Unsupported inference device={resolved!s}. Expected one of: cpu, cuda, mps.")
+    if resolved.type == "xpu":
+        if not _is_xpu_available():
+            raise ValueError("XPU device requested but torch.xpu.is_available() is False.")
+        return resolved
+    raise ValueError(f"Unsupported inference device={resolved!s}. Expected one of: cpu, cuda, mps, xpu.")
 
 
 def list_available_runtime_devices() -> list[str]:
     devices: list[str] = []
     if torch.cuda.is_available():
         devices.append("cuda")
+    if _is_xpu_available():
+        devices.append("xpu")
     if _is_mps_available():
         devices.append("mps")
     devices.append("cpu")
@@ -64,8 +77,8 @@ def default_runtime_device() -> str:
 
 def list_available_runtime_precisions(device: str | torch.device) -> list[str]:
     resolved = resolve_runtime_device(device)
-    if resolved.type == "cuda":
-        return ["fp32", "bf16"]
+    if resolved.type in ("cuda", "xpu", "mps"):
+        return ["bf16", "fp32"]
     return ["fp32"]
 
 
@@ -76,6 +89,10 @@ def _sync_device(device: torch.device) -> None:
         mps = getattr(torch, "mps", None)
         if mps is not None and hasattr(mps, "synchronize"):
             mps.synchronize()
+    elif device.type == "xpu":
+        xpu = getattr(torch, "xpu", None)
+        if xpu is not None and hasattr(xpu, "synchronize"):
+            xpu.synchronize(device)
 
 
 def _sync_devices(*devices: torch.device) -> None:
@@ -196,8 +213,8 @@ class SamplingRequest:
     seed: int | None = None
     trim_tail: bool = True
     tail_window_size: int = 20
-    tail_std_threshold: float = 0.05
-    tail_mean_threshold: float = 0.1
+    tail_std_threshold: float = 0.3
+    tail_mean_threshold: float = 0.4
 
 
 @dataclass
@@ -209,6 +226,38 @@ class SamplingResult:
     total_to_decode: float
     used_seed: int
     messages: list[str]
+
+
+def _apply_device_optimizations(device: torch.device) -> None:
+    """Apply device-specific performance optimizations for CUDA or XPU."""
+    if device.type == "cuda":
+        # Enable TF32 for Ampere+ GPUs (massive matmul speedup, negligible precision loss).
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
+        # Enable cudnn benchmark for consistent input sizes.
+        torch.backends.cudnn.benchmark = True
+        # Prefer Flash Attention / Memory-Efficient Attention backends.
+        if hasattr(torch.backends.cuda, "enable_flash_sdp"):
+            torch.backends.cuda.enable_flash_sdp(True)
+        if hasattr(torch.backends.cuda, "enable_mem_efficient_sdp"):
+            torch.backends.cuda.enable_mem_efficient_sdp(True)
+        print("[perf] CUDA optimizations applied: TF32, cudnn benchmark, Flash Attention preference", flush=True)
+    elif device.type == "xpu":
+        # Enable oneDNN optimizations for Intel Arc GPUs.
+        if hasattr(torch, "xpu") and hasattr(torch.xpu, "is_available") and torch.xpu.is_available():
+            # Enable oneMKL/oneDNN fast math mode for Intel GPUs.
+            mkldnn = getattr(torch.backends, "mkldnn", None)
+            if mkldnn is not None and hasattr(mkldnn, "is_available") and mkldnn.is_available():
+                pass  # mkldnn is available and will be used automatically
+            # Set XPU-specific environment flags for optimal performance.
+            import os
+            os.environ.setdefault("IPEX_FP32_MATH_MODE", "TF32")  # TF32-like on Intel
+            os.environ.setdefault("SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS", "1")
+            os.environ.setdefault("SYCL_CACHE_PERSISTENT", "1")  # Cache SYCL kernels
+            print(
+                f"[perf] Intel XPU optimizations applied for {torch.xpu.get_device_name(device)}",
+                flush=True,
+            )
 
 
 def _maybe_compile_inference_model(
@@ -236,8 +285,8 @@ def resolve_runtime_dtype(*, precision: str, device: torch.device) -> torch.dtyp
     if mode == "fp32":
         return torch.float32
     if mode == "bf16":
-        if device.type != "cuda":
-            raise ValueError("precision='bf16' currently requires CUDA device.")
+        if device.type not in ("cuda", "xpu", "mps"):
+            raise ValueError("precision='bf16' requires CUDA, XPU, or MPS device.")
         return torch.bfloat16
     raise ValueError(f"Unsupported precision={precision!r}. Expected one of: fp32, bf16.")
 
@@ -421,6 +470,12 @@ class InferenceRuntime:
     def from_key(cls, key: RuntimeKey) -> InferenceRuntime:
         model_device = resolve_runtime_device(key.model_device)
         codec_device = resolve_runtime_device(key.codec_device)
+
+        # Apply CUDA-specific hardware optimizations (TF32, Flash Attention, etc.).
+        _apply_device_optimizations(model_device)
+        if codec_device != model_device:
+            _apply_device_optimizations(codec_device)
+
         model_dtype = resolve_runtime_dtype(
             precision=key.model_precision,
             device=model_device,
@@ -895,6 +950,10 @@ class InferenceRuntime:
                 mps = getattr(torch, "mps", None)
                 if mps is not None and hasattr(mps, "empty_cache"):
                     mps.empty_cache()
+            elif device.type == "xpu":
+                xpu = getattr(torch, "xpu", None)
+                if xpu is not None and hasattr(xpu, "empty_cache"):
+                    xpu.empty_cache()
 
 
 _RUNTIME_CACHE_LOCK = threading.Lock()

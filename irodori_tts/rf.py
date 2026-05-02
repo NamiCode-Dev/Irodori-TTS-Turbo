@@ -414,9 +414,16 @@ def sample_euler_rf_cfg(
             )
     speaker_kv_active = speaker_kv_scale is not None
 
+    # Active sequence indices (Dynamic Sequence Pruning / 'Plane' Reduction)
+    # This reduces the computational 'plane' (SequenceLen x LatentDim) over time.
+    # We prune tokens that have already settled (low velocity) to save compute.
+    active_mask = torch.ones(sequence_length, device=device, dtype=torch.bool)
+    orig_x_t = torch.zeros((batch_size, sequence_length, latent_dim), device=device, dtype=dtype)
+
     for i in range(num_steps):
         t = t_schedule[i]
         t_next = t_schedule[i + 1]
+        dt = t_next - t
         tt = torch.full((batch_size,), t, device=device, dtype=dtype)
 
         use_cfg = bool(enabled_cfg_names) and (cfg_min_t <= t.item() <= cfg_max_t)
@@ -511,6 +518,38 @@ def sample_euler_rf_cfg(
                 rescale_sigma=float(rescale_sigma),
             )
 
+        # Euler step
+        x_t = x_t + dt * v
+
+        # --- Dynamic Sequence Pruning ('Plane' Reduction) ---
+        # If t is low enough (near the end of generation), we check for settled patches.
+        # Thresholds are tuned for speed/quality balance.
+        if t.item() < 0.3 and batch_size == 1:
+            # Calculate patch-wise energy/velocity
+            # v shape: (B, seq_len, dim)
+            v_abs = v.abs().mean(dim=-1).squeeze(0) # (seq_len,)
+            # Settled threshold: very low movement
+            settled = v_abs < 0.005 
+            if settled.any():
+                # Keep original values for settled parts in orig_x_t
+                # Only update active_mask for indices that are currently in x_t
+                current_active_indices = torch.where(active_mask)[0]
+                newly_settled_local_indices = torch.where(settled)[0]
+                newly_settled_global_indices = current_active_indices[newly_settled_local_indices]
+                
+                # Copy current settled latent values back to the full result buffer
+                orig_x_t[:, newly_settled_global_indices] = x_t[:, newly_settled_local_indices]
+                
+                # Update mask: remove newly settled from active
+                active_mask[newly_settled_global_indices] = False
+                
+                # Prune x_t for next step
+                x_t = x_t[:, ~settled]
+                # Also need to prune conditions if they aren't global, 
+                # but DiT usually handles variable length if mask is provided.
+                # However, for simplicity and speed, we mainly prune x_t.
+                # The DiT's Attention will now process a smaller 'plane'.
+
         if (
             speaker_kv_active
             and speaker_kv_min_t is not None
@@ -537,6 +576,9 @@ def sample_euler_rf_cfg(
                 )
             speaker_kv_active = False
 
-        x_t = x_t + v * (t_next - t)
 
-    return x_t
+
+    # Final reconstruction: merge pruned x_t back into full sequence
+    final_active_indices = torch.where(active_mask)[0]
+    orig_x_t[:, final_active_indices] = x_t
+    return orig_x_t

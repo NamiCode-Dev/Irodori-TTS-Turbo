@@ -95,7 +95,7 @@ def main() -> None:
     parser.add_argument(
         "--model-precision",
         choices=["fp32", "bf16"],
-        default="fp32",
+        default="bf16" if default_runtime_device() == "cuda" else "fp32",
         help="Model precision for weights/compute.",
     )
     parser.add_argument(
@@ -106,7 +106,7 @@ def main() -> None:
     parser.add_argument(
         "--codec-precision",
         choices=["fp32", "bf16"],
-        default="fp32",
+        default="bf16" if default_runtime_device() == "cuda" else "fp32",
         help="Codec precision for weights/compute.",
     )
     parser.add_argument(
@@ -171,7 +171,12 @@ def main() -> None:
             "Defaults to checkpoint metadata max_caption_len when available, else max_text_len."
         ),
     )
-    parser.add_argument("--num-steps", type=int, default=40)
+    parser.add_argument(
+        "--num-steps",
+        type=int,
+        default=10,
+        help="Number of Euler steps for sampling (default: 10).",
+    )
     parser.add_argument(
         "--num-candidates",
         type=int,
@@ -191,8 +196,8 @@ def main() -> None:
     parser.add_argument(
         "--compile-model",
         action=argparse.BooleanOptionalAction,
-        default=False,
-        help="Enable torch.compile for core inference methods (default: disabled).",
+        default=None,
+        help="Enable torch.compile for core inference methods (default: auto-enabled on CUDA).",
     )
     parser.add_argument(
         "--compile-dynamic",
@@ -234,19 +239,19 @@ def main() -> None:
     parser.add_argument(
         "--rescale-k",
         type=float,
-        default=None,
+        default=0.7,
         help=(
             "Temporal score rescaling k (Xu et al., 2025). "
-            "Set together with --rescale-sigma. Default: disabled."
+            "Set together with --rescale-sigma. Default: 0.7."
         ),
     )
     parser.add_argument(
         "--rescale-sigma",
         type=float,
-        default=None,
+        default=0.7,
         help=(
             "Temporal score rescaling sigma (Xu et al., 2025). "
-            "Set together with --rescale-k. Default: disabled."
+            "Set together with --rescale-k. Default: 0.7."
         ),
     )
     parser.add_argument(
@@ -298,8 +303,8 @@ def main() -> None:
         ),
     )
     parser.add_argument("--tail-window-size", type=int, default=20)
-    parser.add_argument("--tail-std-threshold", type=float, default=0.05)
-    parser.add_argument("--tail-mean-threshold", type=float, default=0.1)
+    parser.add_argument("--tail-std-threshold", type=float, default=0.3)
+    parser.add_argument("--tail-mean-threshold", type=float, default=0.4)
     parser.add_argument(
         "--show-timings",
         action=argparse.BooleanOptionalAction,
@@ -324,6 +329,11 @@ def main() -> None:
 
     checkpoint_path = _resolve_checkpoint_path(args)
 
+    # Auto-enable torch.compile on CUDA when not explicitly set.
+    _compile_model = args.compile_model
+    if _compile_model is None:
+        _compile_model = str(args.model_device).startswith("cuda")
+
     runtime = InferenceRuntime.from_key(
         RuntimeKey(
             checkpoint=checkpoint_path,
@@ -335,7 +345,7 @@ def main() -> None:
             codec_deterministic_encode=bool(args.codec_deterministic_encode),
             codec_deterministic_decode=bool(args.codec_deterministic_decode),
             enable_watermark=bool(args.enable_watermark),
-            compile_model=bool(args.compile_model),
+            compile_model=bool(_compile_model),
             compile_dynamic=bool(args.compile_dynamic),
         )
     )

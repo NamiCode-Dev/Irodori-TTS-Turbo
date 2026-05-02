@@ -24,6 +24,22 @@ def apply_rotary_emb(x: torch.Tensor, freqs_cis: torch.Tensor) -> torch.Tensor:
     return x_.type_as(x)
 
 
+def _bool_mask_to_sdpa_mask(mask: torch.Tensor, dtype: torch.dtype) -> torch.Tensor | None:
+    """
+    Convert a bool key mask (B, S_kv) to an SDPA-compatible float attention mask.
+
+    Flash Attention only fires when attn_mask is None or a float tensor.
+    Boolean masks force PyTorch to fall back to the slower math-based SDPA path.
+    Returns None if all elements are True (no masking needed -> Flash Attention optimal path).
+    """
+    if mask.all():
+        return None
+    # Build (B, 1, 1, S_kv) float mask with 0.0 for valid and -inf for masked.
+    float_mask = torch.zeros_like(mask, dtype=dtype)
+    float_mask.masked_fill_(~mask, float("-inf"))
+    return float_mask[:, None, None, :]
+
+
 def get_timestep_embedding(timestep: torch.Tensor, dim: int) -> torch.Tensor:
     assert dim % 2 == 0
     half = dim // 2
@@ -170,7 +186,7 @@ class SelfAttention(nn.Module):
 
         attn_mask = None
         if key_mask is not None:
-            attn_mask = key_mask[:, None, None, :]
+            attn_mask = _bool_mask_to_sdpa_mask(key_mask, dtype=q.dtype)
 
         y = F.scaled_dot_product_attention(
             q.transpose(1, 2),
@@ -383,7 +399,7 @@ class JointAttention(nn.Module):
         k = torch.cat(context_k, dim=1)
         v = torch.cat(context_v, dim=1)
         attn_mask = torch.cat(context_masks, dim=1)
-        attn_mask = attn_mask[:, None, None, :]
+        attn_mask = _bool_mask_to_sdpa_mask(attn_mask, dtype=q.dtype)
 
         y = F.scaled_dot_product_attention(
             q.transpose(1, 2),

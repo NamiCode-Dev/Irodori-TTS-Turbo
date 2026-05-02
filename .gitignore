@@ -217,3 +217,20 @@ __marimo__/
 
 gradio_outputs/
 gradio_outputs_voicedesign/
+
+# Model Weights (Heavily binaries to be downloaded via script/HF)
+*.pt
+*.pth
+*.safetensors
+
+# Inference Outputs
+outputs/
+output/
+*.wav
+*.mp3
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
