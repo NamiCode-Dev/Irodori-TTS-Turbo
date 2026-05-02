@@ -318,6 +318,126 @@ def _clear_runtime_cache() -> str:
     return "cleared loaded model from memory"
 
 
+# Dictionary for bilingual support
+TRANSLATIONS = {
+    "English": {
+        "title": "Irodori-TTS-Turbo WebUI",
+        "description": "Accelerated TTS with Intel XPU & Dynamic Pruning. Reuses model in memory for fast generation.",
+        "checkpoint": "Model (Path or HF Repo ID)",
+        "model_device": "Inference Device (Model)",
+        "model_precision": "Precision (Model)",
+        "codec_device": "Inference Device (Codec)",
+        "codec_precision": "Precision (Codec)",
+        "load_model": "Load Model",
+        "clear_cache": "Clear Memory",
+        "status": "Model Status",
+        "text": "Text to Synthesize",
+        "ref_audio": "Reference Audio (Optional; Leave blank for no-reference mode)",
+        "sampling_settings": "Sampling Settings (Quality & Speed)",
+        "num_steps": "Number of Steps (Turbo: 10-15 steps recommended)",
+        "num_candidates": "Number of Candidates",
+        "seed": "Seed (Blank for random)",
+        "cfg_mode": "CFG Guidance Mode (Independent recommended)",
+        "cfg_text": "CFG Scale Text",
+        "cfg_speaker": "CFG Scale Speaker",
+        "advanced_settings": "Advanced Settings",
+        "cfg_override": "CFG Override (Optional)",
+        "cfg_min_t": "CFG Min t",
+        "cfg_max_t": "CFG Max t",
+        "use_kv_cache": "Use Context KV Cache (Faster)",
+        "truncation": "Truncation Factor (Optional)",
+        "rescale_k": "Rescale k (Recommended: 0.7)",
+        "rescale_sigma": "Rescale sigma (Recommended: 0.7)",
+        "speaker_kv_scale": "Speaker KV Scale (Optional)",
+        "speaker_kv_min_t": "Speaker KV Min t",
+        "speaker_kv_max_layers": "Speaker KV Max Layers",
+        "generate": "Generate Audio",
+        "log": "Execution Log",
+        "timing": "Processing Time (Timings)",
+        "output_label": "Generated Audio",
+    },
+    "日本語": {
+        "title": "Irodori-TTS-Turbo 音声合成 WebUI",
+        "description": "Intel XPU対応・動的削減による高速化版。メモリ上のモデルを再利用して高速に生成します。",
+        "checkpoint": "モデル (パスまたはHFリポジトリID)",
+        "model_device": "推論デバイス (モデル)",
+        "model_precision": "計算精度 (モデル)",
+        "codec_device": "推論デバイス (コーデック)",
+        "codec_precision": "計算精度 (コーデック)",
+        "load_model": "モデルを読み込む",
+        "clear_cache": "メモリから解放",
+        "status": "モデルの状態 (ステータス)",
+        "text": "読み上げるテキスト",
+        "ref_audio": "参照音声のアップロード (オプション、空欄の場合はノーリファレンスモード)",
+        "sampling_settings": "サンプリング設定 (品質や生成速度の調整)",
+        "num_steps": "ステップ数 (Turbo版は10-15程度推奨)",
+        "num_candidates": "生成候補数",
+        "seed": "シード値 (空欄でランダム)",
+        "cfg_mode": "CFG ガイダンスモード (independent推奨)",
+        "cfg_text": "テキストの反映度 (CFG Scale Text)",
+        "cfg_speaker": "話者の反映度 (CFG Scale Speaker)",
+        "advanced_settings": "高度な設定",
+        "cfg_override": "CFG一括上書き (オプション)",
+        "cfg_min_t": "CFG 最小t値",
+        "cfg_max_t": "CFG 最大t値",
+        "use_kv_cache": "Context KVキャッシュを使用 (高速化)",
+        "truncation": "トランケーション係数 (オプション)",
+        "rescale_k": "Rescale k (推奨: 0.7)",
+        "rescale_sigma": "Rescale sigma (推奨: 0.7)",
+        "speaker_kv_scale": "話者特徴スケール (オプション)",
+        "speaker_kv_min_t": "話者特徴スケール 最小t値",
+        "speaker_kv_max_layers": "話者特徴スケール 最大レイヤー数",
+        "generate": "音声を生成",
+        "log": "実行ログ",
+        "timing": "処理時間 (タイミング)",
+        "output_label": "生成された音声",
+    }
+}
+
+
+def _update_ui_language(lang: str):
+    t = TRANSLATIONS[lang]
+    updates = [
+        gr.update(value=f"# {t['title']}"),
+        gr.update(value=t['description']),
+        gr.update(label=t['checkpoint']),
+        gr.update(label=t['model_device']),
+        gr.update(label=t['model_precision']),
+        gr.update(label=t['codec_device']),
+        gr.update(label=t['codec_precision']),
+        gr.update(value=t['load_model']),
+        gr.update(value=t['clear_cache']),
+        gr.update(label=t['status']),
+        gr.update(label=t['text']),
+        gr.update(label=t['ref_audio']),
+        gr.update(label=t['sampling_settings']),
+        gr.update(label=t['num_steps']),
+        gr.update(label=t['num_candidates']),
+        gr.update(label=t['seed']),
+        gr.update(label=t['cfg_mode']),
+        gr.update(label=t['cfg_text']),
+        gr.update(label=t['cfg_speaker']),
+        gr.update(label=t['advanced_settings']),
+        gr.update(label=t['cfg_override']),
+        gr.update(label=t['cfg_min_t']),
+        gr.update(label=t['cfg_max_t']),
+        gr.update(label=t['use_kv_cache']),
+        gr.update(label=t['truncation']),
+        gr.update(label=t['rescale_k']),
+        gr.update(label=t['rescale_sigma']),
+        gr.update(label=t['speaker_kv_scale']),
+        gr.update(label=t['speaker_kv_min_t']),
+        gr.update(label=t['speaker_kv_max_layers']),
+        gr.update(value=t['generate']),
+        gr.update(label=t['log']),
+        gr.update(label=t['timing']),
+    ]
+    # Update audio output labels
+    for i in range(MAX_GRADIO_CANDIDATES):
+        updates.append(gr.update(label=f"{t['output_label']} {i + 1}"))
+    return updates
+
+
 def build_ui() -> gr.Blocks:
     default_checkpoint = _default_checkpoint()
     default_model_device = _default_model_device()
@@ -326,38 +446,47 @@ def build_ui() -> gr.Blocks:
     model_precision_choices = _precision_choices_for_device(default_model_device)
     codec_precision_choices = _precision_choices_for_device(default_codec_device)
 
-    with gr.Blocks(title="Irodori-TTS 音声合成 WebUI") as demo:
-        gr.Markdown("# Irodori-TTS 音声合成 WebUI")
-        gr.Markdown(
-            "モデルやデバイスの設定が同じ場合はメモリ上のモデルを再利用して高速に生成します。"
-        )
+    # Initial language: English
+    t = TRANSLATIONS["English"]
+
+    with gr.Blocks(title=t["title"]) as demo:
+        with gr.Row():
+            title_md = gr.Markdown(f"# {t['title']}")
+            language_select = gr.Radio(
+                choices=["English", "日本語"],
+                value="English",
+                label="Language / 言語",
+                scale=0
+            )
+        
+        description_md = gr.Markdown(t["description"])
 
         with gr.Row():
             checkpoint = gr.Textbox(
-                label="モデル (チェックポイントのパス、またはHFリポジトリID)",
+                label=t["checkpoint"],
                 value=default_checkpoint,
                 scale=4,
             )
             model_device = gr.Dropdown(
-                label="推論デバイス (モデル)",
+                label=t["model_device"],
                 choices=device_choices,
                 value=default_model_device,
                 scale=1,
             )
             model_precision = gr.Dropdown(
-                label="計算精度 (モデル)",
+                label=t["model_precision"],
                 choices=model_precision_choices,
                 value=model_precision_choices[0],
                 scale=1,
             )
             codec_device = gr.Dropdown(
-                label="推論デバイス (コーデック)",
+                label=t["codec_device"],
                 choices=device_choices,
                 value=default_codec_device,
                 scale=1,
             )
             codec_precision = gr.Dropdown(
-                label="計算精度 (コーデック)",
+                label=t["codec_precision"],
                 choices=codec_precision_choices,
                 value=codec_precision_choices[0],
                 scale=1,
@@ -365,67 +494,67 @@ def build_ui() -> gr.Blocks:
             enable_watermark = gr.State(False)
 
         with gr.Row():
-            load_model_btn = gr.Button("モデルを読み込む")
-            clear_cache_btn = gr.Button("メモリから解放")
-            clear_cache_msg = gr.Textbox(label="モデルの状態 (ステータス)", interactive=False)
+            load_model_btn = gr.Button(t["load_model"])
+            clear_cache_btn = gr.Button(t["clear_cache"])
+            clear_cache_msg = gr.Textbox(label=t["status"], interactive=False)
 
-        text = gr.Textbox(label="読み上げるテキスト", lines=4)
+        text = gr.Textbox(label=t["text"], lines=4)
         uploaded_audio = gr.Audio(
-            label="参照音声のアップロード (オプション、空欄の場合はノーリファレンスモードで生成)",
+            label=t["ref_audio"],
             type="filepath",
         )
 
-        with gr.Accordion("サンプリング設定 (品質や生成速度の調整)", open=True):
+        with gr.Accordion(t["sampling_settings"], open=True) as sampling_acc:
             with gr.Row():
-                num_steps = gr.Slider(label="ステップ数 (少ないほど高速、15程度で十分な品質)", minimum=1, maximum=120, value=15, step=1)
+                num_steps = gr.Slider(label=t["num_steps"], minimum=1, maximum=120, value=10, step=1)
                 num_candidates = gr.Slider(
-                    label="生成候補数 (一度に生成する音声の数)",
+                    label=t["num_candidates"],
                     minimum=1,
                     maximum=MAX_GRADIO_CANDIDATES,
                     value=1,
                     step=1,
                 )
-                seed_raw = gr.Textbox(label="シード値 (空欄でランダム生成)", value="")
+                seed_raw = gr.Textbox(label=t["seed"], value="")
 
             with gr.Row():
                 cfg_guidance_mode = gr.Dropdown(
-                    label="CFG ガイダンスモード (independent推奨)",
+                    label=t["cfg_mode"],
                     choices=["independent", "joint", "alternating"],
                     value="independent",
                 )
                 cfg_scale_text = gr.Slider(
-                    label="テキストの反映度 (CFG Scale Text)",
+                    label=t["cfg_text"],
                     minimum=0.0,
                     maximum=10.0,
                     value=3.0,
                     step=0.1,
                 )
                 cfg_scale_speaker = gr.Slider(
-                    label="話者の反映度 (CFG Scale Speaker)",
+                    label=t["cfg_speaker"],
                     minimum=0.0,
                     maximum=10.0,
                     value=5.0,
                     step=0.1,
                 )
 
-        with gr.Accordion("高度な設定 (オプション)", open=False):
-            cfg_scale_raw = gr.Textbox(label="CFG一括上書き (オプション)", value="")
+        with gr.Accordion(t["advanced_settings"], open=False) as advanced_acc:
+            cfg_scale_raw = gr.Textbox(label=t["cfg_override"], value="")
             with gr.Row():
-                cfg_min_t = gr.Number(label="CFG 最小t値 (CFGを適用する最小ステップ)", value=0.5)
-                cfg_max_t = gr.Number(label="CFG 最大t値", value=1.0)
-                context_kv_cache = gr.Checkbox(label="Context KVキャッシュを使用 (高速化)", value=True)
+                cfg_min_t = gr.Number(label=t["cfg_min_t"], value=0.5)
+                cfg_max_t = gr.Number(label=t["cfg_max_t"], value=1.0)
+                context_kv_cache = gr.Checkbox(label=t["use_kv_cache"], value=True)
             with gr.Row():
-                truncation_factor_raw = gr.Textbox(label="トランケーション係数 (オプション)", value="")
-                rescale_k_raw = gr.Textbox(label="Rescale k (スコア再スケーリング係数、0.7推奨)", value="0.7")
-                rescale_sigma_raw = gr.Textbox(label="Rescale sigma (スコア再スケーリング分散、0.7推奨)", value="0.7")
+                truncation_factor_raw = gr.Textbox(label=t["truncation"], value="")
+                rescale_k_raw = gr.Textbox(label=t["rescale_k"], value="0.7")
+                rescale_sigma_raw = gr.Textbox(label=t["rescale_sigma"], value="0.7")
             with gr.Row():
-                speaker_kv_scale_raw = gr.Textbox(label="話者特徴スケール (Speaker KV Scale、オプション)", value="")
-                speaker_kv_min_t_raw = gr.Textbox(label="話者特徴スケール 最小t値", value="0.9")
+                speaker_kv_scale_raw = gr.Textbox(label=t["speaker_kv_scale"], value="")
+                speaker_kv_min_t_raw = gr.Textbox(label=t["speaker_kv_min_t"], value="0.9")
                 speaker_kv_max_layers_raw = gr.Textbox(
-                    label="話者特徴スケール 最大レイヤー数", value=""
+                    label=t["speaker_kv_max_layers"], value=""
                 )
 
-        generate_btn = gr.Button("音声を生成 (Generate)", variant="primary")
+        generate_btn = gr.Button(t["generate"], variant="primary")
 
         out_audios: list[gr.Audio] = []
         num_rows = (
@@ -440,15 +569,32 @@ def build_ui() -> gr.Blocks:
                             break
                         out_audios.append(
                             gr.Audio(
-                                label=f"生成された音声 {i + 1}",
+                                label=f"{t['output_label']} {i + 1}",
                                 type="filepath",
                                 interactive=False,
                                 visible=(i == 0),
                                 min_width=160,
                             )
                         )
-        out_log = gr.Textbox(label="実行ログ", lines=8)
-        out_timing = gr.Textbox(label="処理時間 (タイミング)", lines=8)
+        out_log = gr.Textbox(label=t["log"], lines=8)
+        out_timing = gr.Textbox(label=t["timing"], lines=8)
+
+        # Language Switch Event
+        language_select.change(
+            _update_ui_language,
+            inputs=[language_select],
+            outputs=[
+                title_md, description_md, checkpoint, model_device, model_precision,
+                codec_device, codec_precision, load_model_btn, clear_cache_btn,
+                clear_cache_msg, text, uploaded_audio, sampling_acc, num_steps,
+                num_candidates, seed_raw, cfg_guidance_mode, cfg_scale_text,
+                cfg_scale_speaker, advanced_acc, cfg_scale_raw, cfg_min_t,
+                cfg_max_t, context_kv_cache, truncation_factor_raw, rescale_k_raw,
+                rescale_sigma_raw, speaker_kv_scale_raw, speaker_kv_min_t_raw,
+                speaker_kv_max_layers_raw, generate_btn, out_log, out_timing,
+                *out_audios
+            ]
+        )
 
         generate_btn.click(
             _run_generation,
@@ -524,3 +670,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
