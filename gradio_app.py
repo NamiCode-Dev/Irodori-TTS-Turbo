@@ -660,6 +660,11 @@ def main() -> None:
 
     demo = build_ui()
     demo.queue(default_concurrency_limit=1)
+    
+    print(f"\n[Irodori-TTS-Turbo] Server starting...")
+    print(f" - Local Access:   http://localhost:{args.server_port}")
+    print(f" - Network Access: http://0.0.0.0:{args.server_port}\n")
+    
     demo.launch(
         server_name=args.server_name,
         server_port=args.server_port,
