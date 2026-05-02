@@ -23,6 +23,17 @@ By integrating native **Intel XPU (Arc/Core Ultra)** support and state-of-the-ar
 - **BFloat16 Mixed Precision**: 
   Full support for bf16 across all accelerators to reduce memory bandwidth and increase throughput without quality loss.
 
+## ✨ User-Friendly Features
+
+- **Zero-Config Installer (`install.bat`)**: 
+  Automated environment setup using `uv`. No need to manually install Python or PyTorch; the script handles everything including Intel-specific drivers and libraries.
+- **One-Click Launcher (`run.bat`)**: 
+  Instantly starts the Gradio Web UI without touching the terminal.
+- **Bilingual Interface**: 
+  Fully localized Web UI (English/Japanese) with dynamic language switching.
+- **Smart Hardware Detection**: 
+  Automatically selects and optimizes for the best available hardware (NVIDIA CUDA, Intel XPU, Apple MPS, or CPU).
+
 ## 📦 Installation (Windows / Intel Arc)
 
 For Windows users with Intel hardware, setting up the environment is as simple as running one script:
@@ -76,6 +87,17 @@ uv run python infer.py \
   浮動小数点ベースのアテンションマスクを採用し、ハードウェアが提供する最速の計算パス（SDPA）を確実に利用します。
 - **BFloat16 混合精度推論**: 
   メモリ帯域を節約し、精度を維持したままスループットを向上させます。
+
+## ✨ 使いやすさへのこだわり
+
+- **ゼロ構成インストーラー (`install.bat`)**: 
+  `uv` を活用した全自動環境構築。Python や PyTorch の手動インストールは不要で、Intel 固有のドライバやライブラリまで一括でセットアップします。
+- **ワンクリック起動 (`run.bat`)**: 
+  ターミナルを意識することなく、ダブルクリックだけで Gradio Web UI を起動可能。
+- **完全日本語対応 UI**: 
+  日本語と英語のバイリンガルインターフェースを搭載し、設定から操作までスムーズに行えます。
+- **自動ハードウェア検知**: 
+  実行環境を自動判別し、NVIDIA CUDA、Intel XPU、Apple MPS、または CPU から最適なデバイスを選択し最適化します。
 
 ## 📦 インストール (Windows)
 
