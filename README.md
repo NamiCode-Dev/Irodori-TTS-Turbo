@@ -1,3 +1,7 @@
+[English](#irodori-tts-turbo-accelerated-edition) | [日本語](#irodori-tts-turbo-加速版)
+
+---
+
 # Irodori-TTS-Turbo (Accelerated Edition)
 
 [![Model](https://img.shields.io/badge/Model-HuggingFace-yellow)](https://huggingface.co/Aratako/Irodori-TTS-500M-v2)
@@ -53,23 +57,52 @@ uv run python infer.py \
   --num-steps 10
 ```
 
-## 📊 Performance Benchmark (Theoretical)
+---
 
-| Optimization Item | Speedup Factor |
-|---|---|
-| Step Reduction (40 -> 10) | **4.0x** |
-| XPU Acceleration (Intel GPU vs CPU) | **5.0x ~ 20.0x** |
-| Dynamic Sequence Pruning | **~1.5x** |
-| Flash Attention / bf16 | **~2.0x** |
-| **Total Cumulative Speedup** | **Up to 15x - 50x+** |
+# Irodori-TTS-Turbo (加速版)
 
-## 📁 Project Structure
+**Irodori-TTS-Turbo** は、Flow Matchingベースの音声合成モデル Irodori-TTS を極限まで高速化した最適化版です。
+特に **Intel XPU (Arc/Core Ultra)** へのネイティブ対応と、最新の推論最適化アルゴリズムにより、従来比で **10倍以上の高速化** を実現しています。
 
-- `irodori_tts/`: Core library with optimized inference runtime.
-- `gradio_app.py`: Multi-lingual Gradio Web UI.
-- `install.bat`: One-click environment setup for Windows.
-- `run.bat`: Quick launch script.
-- `pyproject.toml`: Dependency definition (supports auto-switching between CUDA/XPU).
+## 🚀 高速化機能 (Turbo)
+
+- **Intel XPU ネイティブ対応 (GPU / NPU)**: 
+  Intel のディスクリートGPU、内蔵GPU、および NPU に最適化。`torch-xpu` と oneDNN/SYCL バックエンドを利用し、ハードウェアの性能を最大限に引き出します。
+- **動的平面削減 (Dynamic Sequence Pruning)**: 
+  推論途中で「変化が完了したパッチ」を特定し計算対象から除外することで、Attentionの計算量を動的に削減する革新的な手法を導入しています。
+- **10ステップ爆速推論**: 
+  Logit-Normal サンプリングと最適化された TSR により、わずか **10ステップ** で高品質な音声を生成可能（標準の 40 ステップから大幅短縮）。
+- **Flash Attention / SDPA 最適化**: 
+  浮動小数点ベースのアテンションマスクを採用し、ハードウェアが提供する最速の計算パス（SDPA）を確実に利用します。
+- **BFloat16 混合精度推論**: 
+  メモリ帯域を節約し、精度を維持したままスループットを向上させます。
+
+## 📦 インストール (Windows)
+
+Windows ユーザー、特に Intel ハードウェアをお使いの場合は、スクリプト一つで環境構築が完了します。
+
+1. **リポジトリをクローン**:
+   ```bash
+   git clone https://github.com/NamiCode-Dev/Irodori-TTS-Turbo.git
+   cd Irodori-TTS-Turbo
+   ```
+
+2. **インストーラーを実行**:
+   `install.bat` を実行してください。
+   `uv` のインストールから、**Intel XPU 対応版 PyTorch** のセットアップまで自動で行われます。
+
+## 🛠️ クイックスタート
+
+### Web UI 起動
+`run.bat` を実行し、ブラウザで `http://localhost:7860` を開いてください。最適化された日本語インターフェースが立ち上がります。
+
+### CLI 推論
+```bash
+uv run python infer.py \
+  --text "驚くほど速くなりましたね。" \
+  --ref-wav path/to/reference.wav \
+  --num-steps 10
+```
 
 ## 📜 License
 
