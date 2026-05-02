@@ -40,7 +40,6 @@ dacvae = { git = "https://github.com/facebookresearch/dacvae" }
 triton-xpu = [
     { index = "pytorch-xpu", marker = "sys_platform == 'linux'" },
 ]
-dacvae = { git = "https://github.com/facebookresearch/dacvae" }
 
 [tool.uv]
 # triton-xpu is not available on Windows; torch+xpu works for inference without it.
