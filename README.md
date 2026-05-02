@@ -8,7 +8,7 @@
 [![License: MIT](https://img.shields.io/badge/Code%20License-MIT-green.svg)](LICENSE)
 
 **Irodori-TTS-Turbo** is an extremely optimized version of Irodori-TTS, a Flow Matching-based Text-to-Speech model. 
-By integrating native **Intel XPU (Arc/Core Ultra)** support and state-of-the-art inference algorithms, it achieves over **10x speedup** compared to the original implementation.
+By integrating native **Intel XPU (Arc/Core Ultra)** support and state-of-the-art inference algorithms, it achieves over **10x speedup** on Intel hardware compared to the original CPU-based or unoptimized implementations. (Other accelerators like NVIDIA CUDA also see significant 4-6x gains from algorithmic optimizations).
 
 ## 🚀 Key Accelerated Features (Turbo)
 
@@ -62,7 +62,7 @@ uv run python infer.py \
 # Irodori-TTS-Turbo (加速版)
 
 **Irodori-TTS-Turbo** は、Flow Matchingベースの音声合成モデル Irodori-TTS を極限まで高速化した最適化版です。
-特に **Intel XPU (Arc/Core Ultra)** へのネイティブ対応と、最新の推論最適化アルゴリズムにより、従来比で **10倍以上の高速化** を実現しています。
+特に **Intel XPU (Arc/Core Ultra)** へのネイティブ対応と、最新の推論最適化アルゴリズムにより、Intel環境では従来（CPU実行等）比で **10倍以上の高速化** を実現しています。（NVIDIA CUDA等でも、アルゴリズム改善により4〜6倍程度の高速化が期待できます）。
 
 ## 🚀 高速化機能 (Turbo)
 
