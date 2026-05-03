@@ -174,8 +174,8 @@ def main() -> None:
     parser.add_argument(
         "--num-steps",
         type=int,
-        default=10,
-        help="Number of Euler steps for sampling (default: 10).",
+        default=15,
+        help="Number of Euler steps for sampling (default: 15).",
     )
     parser.add_argument(
         "--num-candidates",
