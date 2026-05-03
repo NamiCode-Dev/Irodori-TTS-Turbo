@@ -21,7 +21,7 @@ from irodori_tts.inference_runtime import (
 
 FIXED_SECONDS = 30.0
 MAX_GRADIO_CANDIDATES = 32
-GRADIO_AUDIO_COLS_PER_ROW = 8
+GRADIO_AUDIO_COLS_PER_ROW = 4
 
 
 def _default_checkpoint() -> str:
@@ -355,6 +355,10 @@ TRANSLATIONS = {
         "log": "Execution Log",
         "timing": "Processing Time (Timings)",
         "output_label": "Generated Audio",
+        "model_tab": "Model Configuration",
+        "sampling_tab": "Sampling",
+        "advanced_tab": "Advanced",
+        "log_tab": "Logs & Info",
     },
     "日本語": {
         "title": "Irodori-TTS-Turbo 音声合成 WebUI",
@@ -391,9 +395,12 @@ TRANSLATIONS = {
         "log": "実行ログ",
         "timing": "処理時間 (タイミング)",
         "output_label": "生成された音声",
+        "model_tab": "モデル設定",
+        "sampling_tab": "生成設定",
+        "advanced_tab": "詳細設定",
+        "log_tab": "ログと情報",
     }
 }
-
 
 def _update_ui_language(lang: str):
     t = TRANSLATIONS[lang]
@@ -410,14 +417,12 @@ def _update_ui_language(lang: str):
         gr.update(label=t['status']),
         gr.update(label=t['text']),
         gr.update(label=t['ref_audio']),
-        gr.update(label=t['sampling_settings']),
         gr.update(label=t['num_steps']),
         gr.update(label=t['num_candidates']),
         gr.update(label=t['seed']),
         gr.update(label=t['cfg_mode']),
         gr.update(label=t['cfg_text']),
         gr.update(label=t['cfg_speaker']),
-        gr.update(label=t['advanced_settings']),
         gr.update(label=t['cfg_override']),
         gr.update(label=t['cfg_min_t']),
         gr.update(label=t['cfg_max_t']),
@@ -431,11 +436,16 @@ def _update_ui_language(lang: str):
         gr.update(value=t['generate']),
         gr.update(label=t['log']),
         gr.update(label=t['timing']),
+        gr.update(label=t['model_tab']),
+        gr.update(label=t['sampling_tab']),
+        gr.update(label=t['advanced_tab']),
+        gr.update(label=t['log_tab']),
     ]
     # Update audio output labels
     for i in range(MAX_GRADIO_CANDIDATES):
         updates.append(gr.update(label=f"{t['output_label']} {i + 1}"))
     return updates
+
 
 
 def build_ui() -> gr.Blocks:
@@ -451,133 +461,136 @@ def build_ui() -> gr.Blocks:
 
     with gr.Blocks(title=t["title"]) as demo:
         with gr.Row():
-            title_md = gr.Markdown(f"# {t['title']}")
-            language_select = gr.Radio(
-                choices=["English", "日本語"],
-                value="English",
-                label="Language / 言語",
-                scale=0
-            )
-        
-        description_md = gr.Markdown(t["description"])
+            with gr.Column(scale=4):
+                title_md = gr.Markdown(f"# {t['title']}")
+                description_md = gr.Markdown(t["description"])
+            with gr.Column(scale=1):
+                language_select = gr.Radio(
+                    choices=["English", "日本語"],
+                    value="English",
+                    label="Language / 言語",
+                )
 
         with gr.Row():
-            checkpoint = gr.Textbox(
-                label=t["checkpoint"],
-                value=default_checkpoint,
-                scale=4,
-            )
-            model_device = gr.Dropdown(
-                label=t["model_device"],
-                choices=device_choices,
-                value=default_model_device,
-                scale=1,
-            )
-            model_precision = gr.Dropdown(
-                label=t["model_precision"],
-                choices=model_precision_choices,
-                value=model_precision_choices[0],
-                scale=1,
-            )
-            codec_device = gr.Dropdown(
-                label=t["codec_device"],
-                choices=device_choices,
-                value=default_codec_device,
-                scale=1,
-            )
-            codec_precision = gr.Dropdown(
-                label=t["codec_precision"],
-                choices=codec_precision_choices,
-                value=codec_precision_choices[0],
-                scale=1,
-            )
-            enable_watermark = gr.State(False)
+            with gr.Column(scale=3):
+                with gr.Group():
+                    text = gr.Textbox(label=t["text"], lines=8, placeholder="Enter text to synthesize...")
+                    uploaded_audio = gr.Audio(
+                        label=t["ref_audio"],
+                        type="filepath",
+                    )
+                    generate_btn = gr.Button(t["generate"], variant="primary", size="lg")
 
-        with gr.Row():
-            load_model_btn = gr.Button(t["load_model"])
-            clear_cache_btn = gr.Button(t["clear_cache"])
-            clear_cache_msg = gr.Textbox(label=t["status"], interactive=False)
+                with gr.Group():
+                    out_audios: list[gr.Audio] = []
+                    num_rows = (
+                        MAX_GRADIO_CANDIDATES + GRADIO_AUDIO_COLS_PER_ROW - 1
+                    ) // GRADIO_AUDIO_COLS_PER_ROW
+                    for row_idx in range(num_rows):
+                        with gr.Row():
+                            for col_idx in range(GRADIO_AUDIO_COLS_PER_ROW):
+                                i = row_idx * GRADIO_AUDIO_COLS_PER_ROW + col_idx
+                                if i >= MAX_GRADIO_CANDIDATES:
+                                    break
+                                out_audios.append(
+                                    gr.Audio(
+                                        label=f"{t['output_label']} {i + 1}",
+                                        type="filepath",
+                                        interactive=False,
+                                        visible=(i == 0),
+                                        min_width=160,
+                                    )
+                                )
 
-        text = gr.Textbox(label=t["text"], lines=4)
-        uploaded_audio = gr.Audio(
-            label=t["ref_audio"],
-            type="filepath",
-        )
-
-        with gr.Accordion(t["sampling_settings"], open=True) as sampling_acc:
-            with gr.Row():
-                num_steps = gr.Slider(label=t["num_steps"], minimum=1, maximum=120, value=15, step=1)
-                num_candidates = gr.Slider(
-                    label=t["num_candidates"],
-                    minimum=1,
-                    maximum=MAX_GRADIO_CANDIDATES,
-                    value=1,
-                    step=1,
-                )
-                seed_raw = gr.Textbox(label=t["seed"], value="")
-
-            with gr.Row():
-                cfg_guidance_mode = gr.Dropdown(
-                    label=t["cfg_mode"],
-                    choices=["independent", "joint", "alternating"],
-                    value="independent",
-                )
-                cfg_scale_text = gr.Slider(
-                    label=t["cfg_text"],
-                    minimum=0.0,
-                    maximum=10.0,
-                    value=3.0,
-                    step=0.1,
-                )
-                cfg_scale_speaker = gr.Slider(
-                    label=t["cfg_speaker"],
-                    minimum=0.0,
-                    maximum=10.0,
-                    value=5.0,
-                    step=0.1,
-                )
-
-        with gr.Accordion(t["advanced_settings"], open=False) as advanced_acc:
-            cfg_scale_raw = gr.Textbox(label=t["cfg_override"], value="")
-            with gr.Row():
-                cfg_min_t = gr.Number(label=t["cfg_min_t"], value=0.5)
-                cfg_max_t = gr.Number(label=t["cfg_max_t"], value=1.0)
-                context_kv_cache = gr.Checkbox(label=t["use_kv_cache"], value=True)
-            with gr.Row():
-                truncation_factor_raw = gr.Textbox(label=t["truncation"], value="")
-                rescale_k_raw = gr.Textbox(label=t["rescale_k"], value="0.7")
-                rescale_sigma_raw = gr.Textbox(label=t["rescale_sigma"], value="0.7")
-            with gr.Row():
-                speaker_kv_scale_raw = gr.Textbox(label=t["speaker_kv_scale"], value="")
-                speaker_kv_min_t_raw = gr.Textbox(label=t["speaker_kv_min_t"], value="0.9")
-                speaker_kv_max_layers_raw = gr.Textbox(
-                    label=t["speaker_kv_max_layers"], value=""
-                )
-
-        generate_btn = gr.Button(t["generate"], variant="primary")
-
-        out_audios: list[gr.Audio] = []
-        num_rows = (
-            MAX_GRADIO_CANDIDATES + GRADIO_AUDIO_COLS_PER_ROW - 1
-        ) // GRADIO_AUDIO_COLS_PER_ROW
-        with gr.Column():
-            for row_idx in range(num_rows):
-                with gr.Row():
-                    for col_idx in range(GRADIO_AUDIO_COLS_PER_ROW):
-                        i = row_idx * GRADIO_AUDIO_COLS_PER_ROW + col_idx
-                        if i >= MAX_GRADIO_CANDIDATES:
-                            break
-                        out_audios.append(
-                            gr.Audio(
-                                label=f"{t['output_label']} {i + 1}",
-                                type="filepath",
-                                interactive=False,
-                                visible=(i == 0),
-                                min_width=160,
+            with gr.Column(scale=2):
+                with gr.Tabs():
+                    with gr.Tab(t["sampling_tab"]) as sampling_tab:
+                        with gr.Group():
+                            num_steps = gr.Slider(label=t["num_steps"], minimum=1, maximum=120, value=15, step=1)
+                            num_candidates = gr.Slider(
+                                label=t["num_candidates"],
+                                minimum=1,
+                                maximum=MAX_GRADIO_CANDIDATES,
+                                value=1,
+                                step=1,
                             )
+                            seed_raw = gr.Textbox(label=t["seed"], value="")
+
+                        with gr.Group():
+                            cfg_guidance_mode = gr.Dropdown(
+                                label=t["cfg_mode"],
+                                choices=["independent", "joint", "alternating"],
+                                value="independent",
+                            )
+                            cfg_scale_text = gr.Slider(
+                                label=t["cfg_text"],
+                                minimum=0.0,
+                                maximum=10.0,
+                                value=3.0,
+                                step=0.1,
+                            )
+                            cfg_scale_speaker = gr.Slider(
+                                label=t["cfg_speaker"],
+                                minimum=0.0,
+                                maximum=10.0,
+                                value=5.0,
+                                step=0.1,
+                            )
+
+                    with gr.Tab(t["model_tab"]) as model_tab:
+                        checkpoint = gr.Textbox(
+                            label=t["checkpoint"],
+                            value=default_checkpoint,
                         )
-        out_log = gr.Textbox(label=t["log"], lines=8)
-        out_timing = gr.Textbox(label=t["timing"], lines=8)
+                        with gr.Row():
+                            model_device = gr.Dropdown(
+                                label=t["model_device"],
+                                choices=device_choices,
+                                value=default_model_device,
+                            )
+                            model_precision = gr.Dropdown(
+                                label=t["model_precision"],
+                                choices=model_precision_choices,
+                                value=model_precision_choices[0],
+                            )
+                        with gr.Row():
+                            codec_device = gr.Dropdown(
+                                label=t["codec_device"],
+                                choices=device_choices,
+                                value=default_codec_device,
+                            )
+                            codec_precision = gr.Dropdown(
+                                label=t["codec_precision"],
+                                choices=codec_precision_choices,
+                                value=codec_precision_choices[0],
+                            )
+                        enable_watermark = gr.State(False)
+                        
+                        with gr.Row():
+                            load_model_btn = gr.Button(t["load_model"])
+                            clear_cache_btn = gr.Button(t["clear_cache"])
+                        clear_cache_msg = gr.Textbox(label=t["status"], interactive=False)
+
+                    with gr.Tab(t["advanced_tab"]) as advanced_tab:
+                        cfg_scale_raw = gr.Textbox(label=t["cfg_override"], value="")
+                        with gr.Row():
+                            cfg_min_t = gr.Number(label=t["cfg_min_t"], value=0.5)
+                            cfg_max_t = gr.Number(label=t["cfg_max_t"], value=1.0)
+                        context_kv_cache = gr.Checkbox(label=t["use_kv_cache"], value=True)
+                        with gr.Row():
+                            truncation_factor_raw = gr.Textbox(label=t["truncation"], value="")
+                            rescale_k_raw = gr.Textbox(label=t["rescale_k"], value="0.7")
+                        rescale_sigma_raw = gr.Textbox(label=t["rescale_sigma"], value="0.7")
+                        with gr.Row():
+                            speaker_kv_scale_raw = gr.Textbox(label=t["speaker_kv_scale"], value="")
+                            speaker_kv_min_t_raw = gr.Textbox(label=t["speaker_kv_min_t"], value="0.9")
+                        speaker_kv_max_layers_raw = gr.Textbox(
+                            label=t["speaker_kv_max_layers"], value=""
+                        )
+
+                    with gr.Tab(t["log_tab"]) as log_tab:
+                        out_log = gr.Textbox(label=t["log"], lines=12)
+                        out_timing = gr.Textbox(label=t["timing"], lines=12)
 
         # Language Switch Event
         language_select.change(
@@ -586,12 +599,13 @@ def build_ui() -> gr.Blocks:
             outputs=[
                 title_md, description_md, checkpoint, model_device, model_precision,
                 codec_device, codec_precision, load_model_btn, clear_cache_btn,
-                clear_cache_msg, text, uploaded_audio, sampling_acc, num_steps,
+                clear_cache_msg, text, uploaded_audio, num_steps,
                 num_candidates, seed_raw, cfg_guidance_mode, cfg_scale_text,
-                cfg_scale_speaker, advanced_acc, cfg_scale_raw, cfg_min_t,
+                cfg_scale_speaker, cfg_scale_raw, cfg_min_t,
                 cfg_max_t, context_kv_cache, truncation_factor_raw, rescale_k_raw,
                 rescale_sigma_raw, speaker_kv_scale_raw, speaker_kv_min_t_raw,
                 speaker_kv_max_layers_raw, generate_btn, out_log, out_timing,
+                model_tab, sampling_tab, advanced_tab, log_tab,
                 *out_audios
             ]
         )
