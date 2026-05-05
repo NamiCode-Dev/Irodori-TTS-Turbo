@@ -397,7 +397,38 @@ def build_ui() -> gr.Blocks:
             clear_cache_btn = gr.Button("メモリから解放")
             clear_cache_msg = gr.Textbox(label="モデルの状態 (ステータス)", interactive=False)
 
-        text = gr.Textbox(label="読み上げるテキスト", lines=4)
+        text = gr.Textbox(label="読み上げるテキスト", lines=4, elem_id="input-text-vd")
+        
+        with gr.Accordion("絵文字一覧", open=False):
+            with gr.Group():
+                emojis = [
+                    "👂", "😮‍💨", "⏸️", "🤭", "🥵", "📢", "😏", "🥺", "🌬️", "😮",
+                    "👅", "💋", "🫶", "😭", "😱", "😪", "⏩", "📞", "🐢", "🥤",
+                    "🤧", "😒", "😰", "😆", "😠", "😲", "🥱", "😖", "😟", "🫣",
+                    "🙄", "😊", "👌", "🙏", "🥴", "🎵", "🤐", "😌", "🤔"
+                ]
+                for i in range(0, len(emojis), 10):
+                    with gr.Row():
+                        for emoji in emojis[i : i + 10]:
+                            btn = gr.Button(emoji, min_width=42, variant="secondary")
+                            btn.click(
+                                fn=lambda x: x,
+                                inputs=[text],
+                                outputs=[text],
+                                js=f"""(text_val) => {{
+                                    const textarea = document.querySelector('#input-text-vd textarea');
+                                    const emoji = "{emoji}";
+                                    if (!textarea) return (text_val || "") + emoji;
+                                    const start = textarea.selectionStart;
+                                    const end = textarea.selectionEnd;
+                                    const newVal = text_val.slice(0, start) + emoji + text_val.slice(end);
+                                    textarea.value = newVal;
+                                    textarea.setSelectionRange(start + emoji.length, start + emoji.length);
+                                    textarea.dispatchEvent(new Event('input'));
+                                    return newVal;
+                                }}"""
+                            )
+
         caption = gr.Textbox(
             label="スタイルの指示 / キャプション (オプション)",
             lines=4,

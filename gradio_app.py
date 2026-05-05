@@ -359,6 +359,7 @@ TRANSLATIONS = {
         "sampling_tab": "Sampling",
         "advanced_tab": "Advanced",
         "log_tab": "Logs & Info",
+        "emojis": "Emojis",
     },
     "日本語": {
         "title": "Irodori-TTS-Turbo 音声合成 WebUI",
@@ -399,6 +400,7 @@ TRANSLATIONS = {
         "sampling_tab": "生成設定",
         "advanced_tab": "詳細設定",
         "log_tab": "ログと情報",
+        "emojis": "絵文字一覧",
     }
 }
 
@@ -440,6 +442,7 @@ def _update_ui_language(lang: str):
         gr.update(label=t['sampling_tab']),
         gr.update(label=t['advanced_tab']),
         gr.update(label=t['log_tab']),
+        gr.update(label=t['emojis']),
     ]
     # Update audio output labels
     for i in range(MAX_GRADIO_CANDIDATES):
@@ -474,7 +477,43 @@ def build_ui() -> gr.Blocks:
         with gr.Row():
             with gr.Column(scale=3):
                 with gr.Group():
-                    text = gr.Textbox(label=t["text"], lines=8, placeholder="Enter text to synthesize...")
+                    text = gr.Textbox(
+                        label=t["text"],
+                        lines=8,
+                        placeholder="Enter text to synthesize...",
+                        elem_id="input-text"
+                    )
+                    
+                    with gr.Accordion(t["emojis"], open=False) as emoji_accordion:
+                        with gr.Group():
+                            emojis = [
+                                "👂", "😮‍💨", "⏸️", "🤭", "🥵", "📢", "😏", "🥺", "🌬️", "😮",
+                                "👅", "💋", "🫶", "😭", "😱", "😪", "⏩", "📞", "🐢", "🥤",
+                                "🤧", "😒", "😰", "😆", "😠", "😲", "🥱", "😖", "😟", "🫣",
+                                "🙄", "😊", "👌", "🙏", "🥴", "🎵", "🤐", "😌", "🤔"
+                            ]
+                            for i in range(0, len(emojis), 10):
+                                with gr.Row():
+                                    for emoji in emojis[i : i + 10]:
+                                        btn = gr.Button(emoji, min_width=42, variant="secondary")
+                                        btn.click(
+                                            fn=lambda x: x,
+                                            inputs=[text],
+                                            outputs=[text],
+                                            js=f"""(text_val) => {{
+                                                const textarea = document.querySelector('#input-text textarea');
+                                                const emoji = "{emoji}";
+                                                if (!textarea) return (text_val || "") + emoji;
+                                                const start = textarea.selectionStart;
+                                                const end = textarea.selectionEnd;
+                                                const newVal = text_val.slice(0, start) + emoji + text_val.slice(end);
+                                                textarea.value = newVal;
+                                                textarea.setSelectionRange(start + emoji.length, start + emoji.length);
+                                                textarea.dispatchEvent(new Event('input'));
+                                                return newVal;
+                                            }}"""
+                                        )
+
                     uploaded_audio = gr.Audio(
                         label=t["ref_audio"],
                         type="filepath",
@@ -605,7 +644,7 @@ def build_ui() -> gr.Blocks:
                 cfg_max_t, context_kv_cache, truncation_factor_raw, rescale_k_raw,
                 rescale_sigma_raw, speaker_kv_scale_raw, speaker_kv_min_t_raw,
                 speaker_kv_max_layers_raw, generate_btn, out_log, out_timing,
-                model_tab, sampling_tab, advanced_tab, log_tab,
+                model_tab, sampling_tab, advanced_tab, log_tab, emoji_accordion,
                 *out_audios
             ]
         )
